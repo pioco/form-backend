@@ -1,0 +1,106 @@
+# Welcome to Serverless!
+#
+# This file is the main config file for your service.
+# It's very minimal at this point and uses default values.
+# You can always add more config options for more control.
+# We've included some commented out config examples here.
+# Just uncomment any of them to get that config option.
+#
+# For full config options, check the docs:
+#    docs.serverless.com
+#
+# Happy Coding!
+
+service: pioco-form # NOTE: update this with your service name
+
+# You can pin your service to only deploy with a specific Serverless version
+# Check out our docs for more details
+# frameworkVersion: "=X.X.X"
+
+#plugins:
+#  - serverless-dynamodb-local
+#  - serverless-offline-python
+
+provider:
+  name: aws
+  runtime: python3.6
+
+# you can overwrite defaults here
+  stage: prod
+  region: eu-west-1
+  variableSyntax: '\${{([\s\S]+?)}}'
+
+  apiKeys:
+    - ${{self:custom.stage}}-piocoFormKey
+  usagePlan:
+    quota:
+      limit: 1000
+      offset: 2
+      period: MONTH
+    throttle:
+      burstLimit: 100
+      rateLimit: 10
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - dynamodb:BatchWriteItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+      Resource: 
+        Fn::Sub: 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${{self:custom.subscriptionTableName}}'
+    - Effect: "Allow"
+      Action:
+        - "ssm:GetParameter*"
+        - "ssm:GetParameter"
+      Resource:
+        Fn::Sub: 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/pioco-slack-token'
+
+custom:
+  stage: "${{opt:stage, self:provider.stage}}"
+  subscriptionTableName: "${{self:custom.stage}}-pioco-subscriptions"
+  serverless-offline:
+    port: 4000
+  dynamodb:
+  # # If you only want to use DynamoDB Local in some stages, declare them here
+    stages:
+      - dev
+    start:
+      port: 8001
+  #     inMemory: true
+  #     migrate: true
+  #     seed: true
+  #     convertEmptyValues: true
+
+functions:
+  subscription_post:
+    handler: formhandler.handle_post
+    events:
+      - http:
+          path: subscription
+          method: post
+          private: true
+          cors: true
+    environment:
+      subscription_table: ${{self:custom.subscriptionTableName}}
+      slack_token_parameter_name: pioco-slack-token
+
+resources:
+  Resources:
+    subscriptionsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${{self:custom.subscriptionTableName}}
+        AttributeDefinitions:
+          - 
+            AttributeName: "email"
+            AttributeType: "S"
+        KeySchema:
+          - 
+            AttributeName: "email"
+            KeyType: "HASH"
+        ProvisionedThroughput:
+          ReadCapacityUnits: "1"
+          WriteCapacityUnits: "5"
+        TimeToLiveSpecification:
+          AttributeName: Expiration
+          Enabled: true
