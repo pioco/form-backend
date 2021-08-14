@@ -29,10 +29,14 @@ def handle_post(event, context):
     payload = json.loads(event["body"])
     slack_invited = False
     subscribed = False
+    if "email" not in payload or payload["email"] != "loeffe@pioco.fi":
+        # primitive antispam: decoy email field which should be set to loeffe. Actual email should be in _email
+        return {"statusCode": 401, "headers": { "Access-Control-Allow-Origin": 'https://pioco.fi', "Access-Control-Allow-Credentials": 'true'}, "body": "forbidden"}
+
     if payload["sendSlackInvite"] == True:
-        slack_invited = send_slack_invite(payload["email"])
-    if payload["addToSubscribers"] == True:
-        subscribed = save_subscription(payload["email"])
+        slack_invited = send_slack_invite(payload["_email"])
+#    if payload["addToSubscribers"] == True:
+#        subscribed = save_subscription(payload["email"])
 
     body = {
         "slackInviteSent": slack_invited,
